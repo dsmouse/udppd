@@ -275,11 +275,15 @@ class main:
         self.load_config()
         self.verify_config()
         
-        if self.opts.has_key("processdir"):
+        if self.opts["processdir"] is not None:
             job=process_job(self.opts["processdir"], self.opts)
             job.prep()
             job.run_foreground(None)
             job.clean_old()
+        elif self.opts["daemon"] is True:
+            raise(config_error("Not implemented"))
+        else :
+            pass
             
                 
     def parse_args(self):
@@ -297,6 +301,11 @@ class main:
         self.opts['runtests']=False
 
     def load_config(self):
+        if not os.path.isfile(self.opts['configfilename']):
+            raise(config_error("Configuration File not found: %s" % self.opts['configfilename']))
+                          
+            
+
         config = ConfigParser.ConfigParser()
         config.read(self.opts['configfilename'])
         for section in config.sections():           
@@ -330,5 +339,5 @@ class main:
 
 if __name__ == "__main__":
     main=main()
-    main.run()
+    #main.run()
         
