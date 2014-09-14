@@ -28,9 +28,11 @@ class filedata:
     fileclass=None
     video_info=None
     filename=None
-    exists=False    
+    exists=False   
+     
     def __init__(self, f, opts):
         self.opts=opts
+        self.setclass("Not Set", False)
         if opts==None:
             self.opts=dict()
             self.opts['video']=dict()
@@ -102,6 +104,8 @@ class filedata:
                     self.setclass("Video", True)
                 elif format_name == 'avi':
                     self.setclass("Video", True)
+                else :
+                    self.setclass("Unknown", False)
             else:
                 self.setclass('Unknown', False)
         else:
@@ -194,7 +198,7 @@ class process_job:
         
         self.origdir="orig"
         while os.access("%s/%s" % (video_dir,self.origdir), os.X_OK|os.W_OK|os.R_OK):
-            self.orig="%s_" % self.origdir
+            self.origdir="%s_" % self.origdir
 #        self.origdir="%s/%s" % ( self.video_dir, self.origdir)
         
     def prep(self):
@@ -242,7 +246,12 @@ class process_job:
                 f.process(self.destdir)
             else:
                 print "Processing non-video file %s" % (f.filename)
-                shutil.copy2(f.filename, self.destdir)
+                if os.path.isfile(f.filename):
+                    shutil.copy2(f.filename, self.destdir)
+                elif os.path.isdir(f.filename):
+                    subjob=process_job(f.filename, self.opts)
+                    subjob.run_foreground()
+                    shutil.move(f.filename,self.destdir)
         self.status="OK"
         if lock is not None:
             lock.release()
@@ -260,12 +269,15 @@ class main:
     def __init__(self, configfilename=None, runtests=False, opts=None):
         self.opts=dict()
         self.args=dict()
+        self.opts['processdir']=None
+        self.opts['daemon']=False
+        self.opts['configfilename']=configfilename
+        self.opts['runtests']=runtests
+
         if opts is not None:
             for (k,v ) in opts:
                 self.opts[k]=v
             
-        self.opts['configfilename']=configfilename
-        self.opts['runtests']=runtests
     
         if self.opts['runtests'] is True:
                 self.tests()

@@ -1,0 +1,30 @@
+Upcoming environmental features:
+RPM building
+systemd service file
+
+Primary features:
+
+directory resuabiliy:
+Create a sate file in a directory when moving everything to orig/dest
+If the process dies (i.e. kill, reboot) and is re-ran it'll 
+do the files it hasn't done yet and then finish the cleanup
+
+file element rename
+rename things like 1080p and bluray out when our recoding make them not make sense. 
+
+group rename:
+If you have several files like blah-blah-yada-foo-bar.mkv blah-blah-yada-foo-bar.txt, etc
+and you rename  the first, rename the second to match
+
+process log files
+save some of what we do in the directory where we do them so you'll have a petegry 
+for your video 
+
+audio files
+support for flac/mp3/m4a/ogg stuff
+
+audio normailization (in video and/or audio files):
+...
+
+system daemon 
+daemon queing 

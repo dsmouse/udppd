@@ -60,6 +60,7 @@ class cmdlTest(unittest.TestCase):
             pass
     
         shutil.copytree("./testdata", "./cmdltests/test-a")
+        shutil.copytree("./testdata", "./cmdltests/test-a/test-b")
         
     def tearDown(self):
         pass
@@ -94,6 +95,7 @@ class videoTest(unittest.TestCase):
         shutil.copytree("./testdata", "./tests/testb")
         shutil.copytree("./testdata", "./tests/testc")
         shutil.copytree("./testdata", "./tests/testd")
+        os.mkdir("./tests/testb/orig")
         
     def tearDown(self):
         pass
