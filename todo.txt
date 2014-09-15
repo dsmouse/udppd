@@ -27,4 +27,6 @@ audio normailization (in video and/or audio files):
 ...
 
 system daemon 
-daemon queing 
+daemon queing
+
+Error Handling FFMPEG failures.
