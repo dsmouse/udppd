@@ -51,13 +51,14 @@ class filedata:
             self.do_bitrate_stuff()
         
     def do_bitrate_stuff(self):
-        max=self.opts['video']['vbitrate']
-        current=self.formatdata['bit_rate']
+        max=int(self.opts['video']['vbitrate'])
+        current=int(self.formatdata['bit_rate'])
         if current < max :
-            self.target_vbitrate=current
+            self.target_vbitrate=str(current)
         else:
-            self.target_vbitrate=max
-        self.target_abitrate=self.opts['video']['abitrate']
+            print "max vbitrate %s currnet vbitrate %s : Limiting" % ( max, current)
+            self.target_vbitrate=str(max)
+        self.target_abitrate=str(self.opts['video']['abitrate'])
         
     def set_proposed_filename(self,f):
         self.proposed_filename=f
