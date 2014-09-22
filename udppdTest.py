@@ -1,5 +1,5 @@
 import unittest
-from uppd import *
+from udppd import *
 from pprint import pprint
 import shutil
 import errno
