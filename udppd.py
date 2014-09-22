@@ -29,12 +29,14 @@ class filedata:
     video_info=None
     filename=None
     exists=False   
+    processed=False
+    cleaned=False
      
     def __init__(self, f, opts):
         self.opts=opts
         self.setclass("Not Set", False)
         if opts==None:
-            self.opts=dict()
+            uelf.opts=dict()
             self.opts['video']=dict()
             self.opts['video']['vbitrate']=200000
             self.opts['video']['abitrate']=9600
@@ -168,6 +170,7 @@ class filedata:
                                 close_fds=True)
         print("running")
         print(ffmpeg.stdout.read())
+        self.processed=True
         print("Ending")
             
     def status(self):
@@ -187,8 +190,10 @@ class process_job:
     def __init__(self, video_dir, opts=None):
         self.status="initializing"
         self.files=list()
+        self.filestat=dict()
         self.opts=opts
         self.video_dir = video_dir
+        self.statusfile = None 
         
         self.lock = multiprocessing.Lock()
         
@@ -204,29 +209,37 @@ class process_job:
         
     def prep(self):
         self.status="scanning"
-        os.mkdir("%s/%s"%(self.video_dir,self.origdir))
-        for f in os.listdir(self.video_dir):
-            if f == self.origdir :
-                pass
-            else:         
-                
-                print ("preping %s/%s" %( self.video_dir,f), "%s/%s" % (self.video_dir,self.origdir))
-                shutil.move("%s/%s" %( self.video_dir,f), "%s/%s" % (self.video_dir,self.origdir))
-        if self.origdir != "orig" :
-            shutil.move("%s/%s" %( self.video_dir,self.origdir), "%s/%s" % (self.video_dir,'orig'))
-        self.origdir="%s/%s" % (self.video_dir,'orig')
-        self.destdir="%s/%s" % (self.video_dir,'dest')
-        os.mkdir(self.destdir)
-        
-        print "Orig dir is %s, adding files to it: " %self.origdir
-        for f in os.listdir(self.origdir):
-            print "Adding %s" % f 
-            self.files.append(filedata("%s/%s"%(self.origdir,f),self.opts))
-        print "Listing self.files"
-        for f in self.files:
-            print f.filename, f.fileclass
-        self.status="waiting"
+        self.statusfile=filedata("%s/%s" % ( self.video_dir, "udppd.status") )
+        if self.statusfile.exists is True:
+            self.load_statusfile()
+        else:
+            os.mkdir("%s/%s"%(self.video_dir,self.origdir))
+            for f in os.listdir(self.video_dir):
+                if f == self.origdir :
+                    pass
+                else:         
+                    
+                    print ("preping %s/%s" %( self.video_dir,f), "%s/%s" % (self.video_dir,self.origdir))
+                    shutil.move("%s/%s" %( self.video_dir,f), "%s/%s" % (self.video_dir,self.origdir))
+            if self.origdir != "orig" :
+                shutil.move("%s/%s" %( self.video_dir,self.origdir), "%s/%s" % (self.video_dir,'orig'))
+            self.origdir="%s/%s" % (self.video_dir,'orig')
+            self.destdir="%s/%s" % (self.video_dir,'dest')
+            os.mkdir(self.destdir)
+            self.create_statusfile()
             
+            print "Orig dir is %s, adding files to it: " %self.origdir
+            for f in os.listdir(self.origdir):
+                print "Adding %s" % f 
+                self.add_file("%s/%s"%(self.origdir,f),self.opts)
+            self.status="waiting"
+            
+    def add_file(self, f):
+        self.files.append(filedata(f,self.opts))
+        if self.statusfile is not None:
+             self.update_statusfile()
+
+
     def get_status(self):
         return self.status
     
@@ -253,6 +266,7 @@ class process_job:
                     subjob=process_job(f.filename, self.opts)
                     subjob.run_foreground()
                     shutil.move(f.filename,self.destdir)
+            self.update_statusfile()
         self.status="OK"
         if lock is not None:
             lock.release()
@@ -263,6 +277,30 @@ class process_job:
         for f in os.listdir(self.destdir):
             shutil.move("%s/%s"%(self.destdir,f), self.video_dir)
             print("Cleaning %s" % (f))
+        self.clean_statusfile()
+
+    def create_statusfile(self):
+        with open(self.statusfile.filename) as f:
+            f.write("udppd status file\n")
+    def update_statusfile_line(self, f, m):
+        if self.filestat.has_key(f) is True and self.filestat[f] == m :
+           pass
+        else:
+           with open(self.statusfile.filename,"w+") as f:
+                f.write("%s: %s" % ( f, m ))
+
+    def update_statusfile(self):
+        for f in self.files:
+            if self.filestatus.has_key(f.filename):
+                if f.cleaned is True:
+                    self.update_statusfile_line(f.filename, "cleaned")
+                elif f.processed is True:
+                    self.update_statusfile_line(f.filename, "processed")
+                else:
+                    self.update_statusfile_line(f.filename, "ready")
+            else:
+                self.update_statusfile_line(f.filename, "new")
+
 
 class main:
     opts=None
