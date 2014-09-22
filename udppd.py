@@ -300,7 +300,7 @@ class main:
                 
     def parse_args(self):
         param_parser = OptionParser()
-        param_parser.add_option("-c", "--config",  dest="configfilename",   default="/etc/uppd.conf", help="config file",          metavar="FILE")
+        param_parser.add_option("-c", "--config",  dest="configfilename",   default="/etc/udppd.conf", help="config file",          metavar="FILE")
         param_parser.add_option("-p", "--process", dest="processdir",       default=None            , help="directory to process", metavar="FILE")
         param_parser.add_option("-D", "--Daemon", dest="daemon",       default=False            , help="Run as service" )
         (opts, args) = param_parser.parse_args()
@@ -328,7 +328,7 @@ class main:
                         
 
     def verify_config(self):
-        for k in ('uppd','video'):
+        for k in ('udppd','video'):
             if self.opts.has_key(k):
                 pass
             else:

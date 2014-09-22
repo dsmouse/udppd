@@ -1,5 +1,5 @@
 Upcoming environmental features:
-RPM building
+RPM building & pysetup
 systemd service file
 
 Primary features:

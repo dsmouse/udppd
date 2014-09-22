@@ -71,7 +71,7 @@ class cmdlTest(unittest.TestCase):
         assert xfile.exists is True
         opts=list()
         opts.append(['processdir',"./cmdltests/test-a"])
-        xmain=subprocess.Popen(['/usr/bin/python','./uppd.py','-c','./testdata/testconfig.conf','-p','./cmdltests/test-a'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        xmain=subprocess.Popen(['/usr/bin/python','./udppd.py','-c','./testdata/testconfig.conf','-p','./cmdltests/test-a'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         print xmain.stdout.read()
         xfile=filedata("./cmdltests/test-a/Karate-WhiteS01E2.avi",None)
         assert xfile.exists is False
