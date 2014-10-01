@@ -8,6 +8,7 @@ import json
 import sys
 import shutil
 from pprint import pprint
+import sqlite3
 
 class config_error(Exception):
     def __init__(self, value):
