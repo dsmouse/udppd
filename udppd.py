@@ -105,6 +105,8 @@ class filedata:
                     self.setclass("Video", True)
                 elif format_name == 'avi':
                     self.setclass("Video", True)
+                elif format_name == 'mov,mp4,m4a,3gp,3g2,mj2':
+                    self.setclass("Video", True)
                 else :
                     self.setclass("Unknown", False)
             else:
