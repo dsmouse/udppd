@@ -37,7 +37,7 @@ class filedata:
         self.opts=opts
         self.setclass("Not Set", False)
         if opts==None:
-            uelf.opts=dict()
+            self.opts=dict()
             self.opts['video']=dict()
             self.opts['video']['vbitrate']=200000
             self.opts['video']['abitrate']=9600
