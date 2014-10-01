@@ -194,6 +194,7 @@ class process_job:
         self.opts=opts
         self.video_dir = video_dir
         self.statusfile = None 
+        self.statusfiledb = None
         
         self.lock = multiprocessing.Lock()
         
@@ -280,8 +281,8 @@ class process_job:
         self.clean_statusfile()
 
     def create_statusfile(self):
-        with open(self.statusfile.filename) as f:
-            f.write("udppd status file\n")
+        self.statusfiledb = sqlite3.connect(self.statusfile.filename)
+        
     def update_statusfile_line(self, f, m):
         if self.filestat.has_key(f) is True and self.filestat[f] == m :
            pass
