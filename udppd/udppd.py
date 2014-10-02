@@ -281,14 +281,45 @@ class process_job:
             print("Cleaning %s" % (f))
         self.clean_statusfile()
 
+    def clean_statusfile(self):
+        if self.statusfiledb is not None:
+            self.statusfiledb.close()
+            self.statusfiledb=None
+        if self.statusfile is not None:
+            os.remove(self.statusfile.filename)
+            self.statusfile=None
+            
     def create_statusfile(self):
-        self.statusfiledb = sqlite3.connect(self.statusfile.filename)
+        try:
+            self.statusfiledb = sqlite3.connect(self.statusfile.filename)
+            con=self.statusfiledb
+            with self.statsusfiledb:    
+                cur = self.statusfiledb.cursor()    
+                cur.executescript("CREATE TABLE files(Id INT, Name TEXT, Price INT)")
+                cur.commit()
+        except sqlite3.Error, e:
+    
+            if con:
+                con.rollback()
         
+            print "Error %s:" % e.args[0]
+            #sys.exit(1) #don't exit for this class of error
+              
+    
+        finally:
+            if con:
+                con.close()
+            self.statusfiledb=None 
+
+
     def update_statusfile_line(self, f, m):
+        if self.statusfiledb is not None:
+            cur = self.statusfiledb.cursor()
+            cur.execute("select * from files where Name = '%s'"%(f.filename))
         if self.filestat.has_key(f) is True and self.filestat[f] == m :
-           pass
+            pass
         else:
-           with open(self.statusfile.filename,"w+") as f:
+            with open(self.statusfile.filename,"w+") as f:
                 f.write("%s: %s" % ( f, m ))
 
     def update_statusfile(self):
