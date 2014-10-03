@@ -8,7 +8,6 @@ import json
 import sys
 import shutil
 from pprint import pprint
-import sqlite3
 
 class config_error(Exception):
     def __init__(self, value):
@@ -30,8 +29,6 @@ class filedata:
     video_info=None
     filename=None
     exists=False   
-    processed=False
-    cleaned=False
      
     def __init__(self, f, opts):
         self.opts=opts
@@ -108,6 +105,8 @@ class filedata:
                     self.setclass("Video", True)
                 elif format_name == 'avi':
                     self.setclass("Video", True)
+                elif format_name == 'mov,mp4,m4a,3gp,3g2,mj2':
+                    self.setclass("Video", True)
                 else :
                     self.setclass("Unknown", False)
             else:
@@ -171,7 +170,6 @@ class filedata:
                                 close_fds=True)
         print("running")
         print(ffmpeg.stdout.read())
-        self.processed=True
         print("Ending")
             
     def status(self):
@@ -191,11 +189,8 @@ class process_job:
     def __init__(self, video_dir, opts=None):
         self.status="initializing"
         self.files=list()
-        self.filestat=dict()
         self.opts=opts
         self.video_dir = video_dir
-        self.statusfile = None 
-        self.statusfiledb = None
         
         self.lock = multiprocessing.Lock()
         
@@ -211,37 +206,29 @@ class process_job:
         
     def prep(self):
         self.status="scanning"
-        self.statusfile=filedata("%s/%s" % ( self.video_dir, "udppd.status") )
-        if self.statusfile.exists is True:
-            self.load_statusfile()
-        else:
-            os.mkdir("%s/%s"%(self.video_dir,self.origdir))
-            for f in os.listdir(self.video_dir):
-                if f == self.origdir :
-                    pass
-                else:         
-                    
-                    print ("preping %s/%s" %( self.video_dir,f), "%s/%s" % (self.video_dir,self.origdir))
-                    shutil.move("%s/%s" %( self.video_dir,f), "%s/%s" % (self.video_dir,self.origdir))
-            if self.origdir != "orig" :
-                shutil.move("%s/%s" %( self.video_dir,self.origdir), "%s/%s" % (self.video_dir,'orig'))
-            self.origdir="%s/%s" % (self.video_dir,'orig')
-            self.destdir="%s/%s" % (self.video_dir,'dest')
-            os.mkdir(self.destdir)
-            self.create_statusfile()
+        os.mkdir("%s/%s"%(self.video_dir,self.origdir))
+        for f in os.listdir(self.video_dir):
+            if f == self.origdir :
+                pass
+            else:         
+                
+                print ("preping %s/%s" %( self.video_dir,f), "%s/%s" % (self.video_dir,self.origdir))
+                shutil.move("%s/%s" %( self.video_dir,f), "%s/%s" % (self.video_dir,self.origdir))
+        if self.origdir != "orig" :
+            shutil.move("%s/%s" %( self.video_dir,self.origdir), "%s/%s" % (self.video_dir,'orig'))
+        self.origdir="%s/%s" % (self.video_dir,'orig')
+        self.destdir="%s/%s" % (self.video_dir,'dest')
+        os.mkdir(self.destdir)
+        
+        print "Orig dir is %s, adding files to it: " %self.origdir
+        for f in os.listdir(self.origdir):
+            print "Adding %s" % f 
+            self.files.append(filedata("%s/%s"%(self.origdir,f),self.opts))
+        print "Listing self.files"
+        for f in self.files:
+            print f.filename, f.fileclass
+        self.status="waiting"
             
-            print "Orig dir is %s, adding files to it: " %self.origdir
-            for f in os.listdir(self.origdir):
-                print "Adding %s" % f 
-                self.add_file("%s/%s"%(self.origdir,f),self.opts)
-            self.status="waiting"
-            
-    def add_file(self, f):
-        self.files.append(filedata(f,self.opts))
-        if self.statusfile is not None:
-            self.update_statusfile()
-
-
     def get_status(self):
         return self.status
     
@@ -268,7 +255,6 @@ class process_job:
                     subjob=process_job(f.filename, self.opts)
                     subjob.run_foreground()
                     shutil.move(f.filename,self.destdir)
-            self.update_statusfile()
         self.status="OK"
         if lock is not None:
             lock.release()
@@ -279,103 +265,6 @@ class process_job:
         for f in os.listdir(self.destdir):
             shutil.move("%s/%s"%(self.destdir,f), self.video_dir)
             print("Cleaning %s" % (f))
-        self.clean_statusfile()
-
-    def clean_statusfile(self):
-        if self.statusfiledb is not None:
-            self.statusfiledb.close()
-            self.statusfiledb=None
-        if self.statusfile is not None:
-            os.remove(self.statusfile.filename)
-            self.statusfile=None
-            
-    def create_statusfile(self):
-        try:
-            self.statusfiledb = sqlite3.connect(self.statusfile.filename)
-            con=self.statusfiledb
-            with self.statsusfiledb:    
-                cur = self.statusfiledb.cursor()    
-                cur.executescript("CREATE TABLE files(Id INT, Name TEXT, Status TEXT)")
-                cur.commit()
-        except sqlite3.Error, e:
-    
-            if con:
-                con.rollback()
-        
-            print "Error %s:" % e.args[0]
-            #sys.exit(1) #don't exit for this class of error
-              
-            if con:
-                con.close()
-            self.statusfiledb=None 
-
-    def load_statusfile(self):
-        try:
-            self.statusfiledb = sqlite3.connect(self.statusfile.filename)
-            con=self.statusfiledb
-            with self.statusfiledb:
-                cur = self.statusfiledb.cursor()
-                cur.execute("select * from files order by Name")
-                
-                while True:
-                    row = cur.fetchone()
-                    
-                    if row == None :
-                        break
-                    
-                    self.add_file(row[1],self.opts, status=row[2])
-        except sqlite3.Error, e:
-    
-            if con:
-                con.rollback()
-        
-            print "Error %s:" % e.args[0]
-            #sys.exit(1) #don't exit for this class of error
-              
-            if con:
-                con.close()
-            self.statusfiledb=None 
-
-
-
-    def update_statusfile_line(self, f, m):
-        if self.statusfiledb is not None:
-            cur = self.statusfiledb.cursor()
-            cur.execute("select * from files where Name = '%s'"%(f.filename))
-            oldrow=False
-            while True:
-                row = cur.fetchone()
-        
-                if row == None:
-                    break
-                oldrow=True
-                #self.status=row[3]
-            if oldrow == True :
-                cur.execute("update files set Status = '%s' where Name = '%s" % ( m,f.filename))
-            else:
-                cur.execute("insert files(Name, Status) Values ('%s', '%s')"%(f.filename,m))
-            
-    def update_statusfile(self):
-        cur=self.statusfiledb.cursor()
-
-        for f in self.files:
-            cur.execute("select * from files where Name = '%s' "%(f.filename))
-            current_status=None
-            while True:
-                row=cur.fetchone()
-                if row == None:
-                    break
-                current_status=row[3]
-            
-            if current_status== None:
-                self.update_statusfole_line(f.filename, "new")    
-            else:
-                if f.cleaned is True:
-                    self.update_statusfile_line(f.filename, "cleaned")
-                elif f.processed is True:
-                    self.update_statusfile_line(f.filename, "processed")
-                else:
-                    self.update_statusfile_line(f.filename, "ready")
 
 class main:
     opts=None
