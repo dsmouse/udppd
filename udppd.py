@@ -211,7 +211,7 @@ class process_job:
         
     def prep(self):
         self.status="scanning"
-        self.statusfile=filedata("%s/%s" % ( self.video_dir, "udppd.status") )
+        self.statusfile=filedata("%s/%s" % ( self.video_dir, "udppd.status"), self.opts )
         if self.statusfile.exists is True:
             self.load_statusfile()
         else:
@@ -233,7 +233,7 @@ class process_job:
             print "Orig dir is %s, adding files to it: " %self.origdir
             for f in os.listdir(self.origdir):
                 print "Adding %s" % f 
-                self.add_file("%s/%s"%(self.origdir,f),self.opts)
+                self.add_file(  "%s/%s"%(self.origdir,f) )
             self.status="waiting"
             
     def add_file(self, f):
@@ -293,10 +293,10 @@ class process_job:
         try:
             self.statusfiledb = sqlite3.connect(self.statusfile.filename)
             con=self.statusfiledb
-            with self.statsusfiledb:    
+            with self.statusfiledb:    
                 cur = self.statusfiledb.cursor()    
-                cur.executescript("CREATE TABLE files(Id INT, Name TEXT, Status TEXT)")
-                cur.commit()
+                cur.execute("CREATE TABLE files(Id INT, Name TEXT, Status TEXT)")
+                
         except sqlite3.Error, e:
     
             if con:
@@ -338,10 +338,10 @@ class process_job:
 
 
 
-    def update_statusfile_line(self, f, m):
+    def update_statusfile_line(self, fn, m):
         if self.statusfiledb is not None:
             cur = self.statusfiledb.cursor()
-            cur.execute("select * from files where Name = '%s'"%(f.filename))
+            cur.execute("select * from files where Name = '%s'"%(fn))
             oldrow=False
             while True:
                 row = cur.fetchone()
@@ -351,9 +351,9 @@ class process_job:
                 oldrow=True
                 #self.status=row[3]
             if oldrow == True :
-                cur.execute("update files set Status = '%s' where Name = '%s" % ( m,f.filename))
+                cur.execute("update files set Status = '%s' where Name = '%s'" % ( m,fn))
             else:
-                cur.execute("insert files(Name, Status) Values ('%s', '%s')"%(f.filename,m))
+                cur.execute("insert into files(Name, Status) values ('%s', '%s')"%(fn,m))
             
     def update_statusfile(self):
         cur=self.statusfiledb.cursor()
@@ -365,10 +365,10 @@ class process_job:
                 row=cur.fetchone()
                 if row == None:
                     break
-                current_status=row[3]
+                current_status=row[2]
             
             if current_status== None:
-                self.update_statusfole_line(f.filename, "new")    
+                self.update_statusfile_line(f.filename, "new")    
             else:
                 if f.cleaned is True:
                     self.update_statusfile_line(f.filename, "cleaned")
