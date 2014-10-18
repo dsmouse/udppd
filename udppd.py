@@ -33,8 +33,9 @@ class filedata:
     processed=False
     cleaned=False
      
-    def __init__(self, f, opts):
+    def __init__(self, f, opts, Status=None):
         self.opts=opts
+        self.filestatus=None
         self.setclass("Not Set", False)
         if opts==None:
             self.opts=dict()
@@ -43,6 +44,7 @@ class filedata:
             self.opts['video']['abitrate']=9600
             self.opts['video']['format']='mkv'
         self.setfilename(f)
+        self.setstatus(Status)
        
         
         
@@ -154,7 +156,7 @@ class filedata:
 
         cmd = ["ffmpeg",
              "-i", self.filename,
-             "-v", "warning",
+             "-v", "warning","-y",
              "-s", self.dest_size,
              "-vcodec", "libx264",
              "-preset", self.opts['video']['preset'],
@@ -175,7 +177,9 @@ class filedata:
         print("Ending")
             
     def status(self):
-        return("Not Implemented")
+        return(self.filestatus)
+    def setstatus(self, Status):
+        self.filestatus=Status
 
 
     def probevideo(self):
@@ -204,17 +208,18 @@ class process_job:
         else:
             raise(config_error("Can't rwx %s" % video_dir))
         
-        self.origdir="orig"
-        while os.access("%s/%s" % (video_dir,self.origdir), os.X_OK|os.W_OK|os.R_OK):
-            self.origdir="%s_" % self.origdir
-#        self.origdir="%s/%s" % ( self.video_dir, self.origdir)
         
     def prep(self):
         self.status="scanning"
         self.statusfile=filedata("%s/%s" % ( self.video_dir, "udppd.status"), self.opts )
         if self.statusfile.exists is True:
+            print("Loading status file\n")
             self.load_statusfile()
         else:
+            self.origdir="orig"
+            while os.access("%s/%s" % (self.video_dir,self.origdir), os.X_OK|os.W_OK|os.R_OK):
+                self.origdir="%s_" % self.origdir
+#            self.origdir="%s/%s" % ( self.video_dir, self.origdir)
             os.mkdir("%s/%s"%(self.video_dir,self.origdir))
             for f in os.listdir(self.video_dir):
                 if f == self.origdir :
@@ -228,17 +233,19 @@ class process_job:
             self.origdir="%s/%s" % (self.video_dir,'orig')
             self.destdir="%s/%s" % (self.video_dir,'dest')
             os.mkdir(self.destdir)
+            print ("mkdired")
             self.create_statusfile()
-            
             print "Orig dir is %s, adding files to it: " %self.origdir
             for f in os.listdir(self.origdir):
                 print "Adding %s" % f 
                 self.add_file(  "%s/%s"%(self.origdir,f) )
             self.status="waiting"
             
-    def add_file(self, f):
-        self.files.append(filedata(f,self.opts))
-        if self.statusfile is not None:
+    def add_file(self, f, opts=None, Status=None, skipupdate=False):
+        if opts == None:
+            opts=self.opts
+        self.files.append(filedata(f,opts, Status=Status))
+        if self.statusfile is not None and skipupdate == False:
             self.update_statusfile()
 
 
@@ -256,18 +263,21 @@ class process_job:
             
     def run_foreground(self, lock=None):
         self.status="Starting"
+        self.update_statusfile()
         for f in self.files:
-            if f.fileclass == "Video":
-                print "Process video file %s" % (f.filename)
-                f.process(self.destdir)
-            else:
-                print "Processing non-video file %s" % (f.filename)
-                if os.path.isfile(f.filename):
-                    shutil.copy2(f.filename, self.destdir)
-                elif os.path.isdir(f.filename):
-                    subjob=process_job(f.filename, self.opts)
-                    subjob.run_foreground()
-                    shutil.move(f.filename,self.destdir)
+            print "F.status():", f.status()
+            if f.status() in ( None, 'ready','new'):
+                if f.fileclass == "Video" :
+                    print "Process video file %s" % (f.filename)
+                    f.process(self.destdir)
+                else:
+                    print "Processing non-video file %s" % (f.filename)
+                    if os.path.isfile(f.filename):
+                        shutil.copy2(f.filename, self.destdir)
+                    elif os.path.isdir(f.filename):
+                        subjob=process_job(f.filename, self.opts)
+                        subjob.run_foreground()
+                        shutil.move(f.filename,self.destdir)
             self.update_statusfile()
         self.status="OK"
         if lock is not None:
@@ -290,83 +300,129 @@ class process_job:
             self.statusfile=None
             
     def create_statusfile(self):
+        
         try:
-            self.statusfiledb = sqlite3.connect(self.statusfile.filename)
-            con=self.statusfiledb
-            with self.statusfiledb:    
-                cur = self.statusfiledb.cursor()    
-                cur.execute("CREATE TABLE files(Id INT, Name TEXT, Status TEXT)")
-                
+            con = sqlite3.connect(self.statusfile.filename)
+            print "open at 305"
+            cur = self.statusfiledb.cursor()    
+            cur.execute("CREATE TABLE files(Name TEXT, Status TEXT)")
+            cur.execute("CREATE TABLE meta(name TEXT,value TEXT)")
+            cur.execute("insert into meta(name, value) values ('%s', '%s')"%("orig",self.origdir)) 
+            cur.execute("insert into meta(name, value) values ('%s', '%s')"%("destdir",self.destdir))
+            
+            con.commit()
+            con.close()    
+            print "closed 305"
         except sqlite3.Error, e:
     
             if con:
                 con.rollback()
         
-            print "Error %s:" % e.args[0]
+            print "Error at 318: %s:" % e.args[0]
             #sys.exit(1) #don't exit for this class of error
               
-            if con:
-                con.close()
-            self.statusfiledb=None 
+        if con:
+            con.close()
+        self.statusfiledb=None 
 
     def load_statusfile(self):
         try:
-            self.statusfiledb = sqlite3.connect(self.statusfile.filename)
-            con=self.statusfiledb
-            with self.statusfiledb:
-                cur = self.statusfiledb.cursor()
-                cur.execute("select * from files order by Name")
+                con = sqlite3.connect(self.statusfile.filename)
+                print("open at 328")
+                cur = con.cursor()
+                cur.execute("select name,value from meta")
+                while True:
+                    row = cur.fetchone()
+                    print "Loading Row:",row
+                    if row == None:
+                        break
+                    if row[0] == 'orig' :
+                        self.origdir=row[1]
+                        
+                    elif row[0] == 'destdir':
+                        self.destdir = row[1]
+                con.commit()
+                con.close()
+                print "closed 328"
+                
+                con = sqlite3.connect(self.statusfile.filename)
+                cur = con.cursor()
+                print("open at 345")
+                        
+                cur.execute("select Name, Status from files order by Name")
                 
                 while True:
                     row = cur.fetchone()
-                    
+                    print 'Loading row:',row
                     if row == None :
                         break
-                    
-                    self.add_file(row[1],self.opts, status=row[2])
+                    print 'n',row[0]
+                    print 's',row[1]
+                    self.add_file(row[0], self.opts, Status=row[1], skipupdate=True)
+                con.commit()
+                con.close()
+                print "closed 345"
         except sqlite3.Error, e:
     
             if con:
                 con.rollback()
         
-            print "Error %s:" % e.args[0]
+            print "Error  at 357 %s:" % e.args[0]
             #sys.exit(1) #don't exit for this class of error
-              
-            if con:
-                con.close()
-            self.statusfiledb=None 
-
+            sys.exit(128)  
+        if con:
+            con.close()
 
 
     def update_statusfile_line(self, fn, m):
-        if self.statusfiledb is not None:
-            cur = self.statusfiledb.cursor()
-            cur.execute("select * from files where Name = '%s'"%(fn))
-            oldrow=False
-            while True:
+        print "update_statusfile_line(%s,%s)" % (fn,m )
+        
+        con = sqlite3.connect(self.statusfile.filename)
+        print "open at 373"
+        cur = con.cursor()
+        cur.execute("select Name, Status from files where Name = '%s'"%(fn))
+        oldrow=False
+        while True:
                 row = cur.fetchone()
+                print "Row:" ,row
         
                 if row == None:
                     break
                 oldrow=True
                 #self.status=row[3]
-            if oldrow == True :
+        con.commit()
+        con.close() 
+        print "close 373"
+        con = sqlite3.connect(self.statusfile.filename)
+        print "open at 387"
+        cur = con.cursor()
+        if oldrow == True :
+                print ("Updating")
                 cur.execute("update files set Status = '%s' where Name = '%s'" % ( m,fn))
-            else:
+        else:
+                print("Inserting")
                 cur.execute("insert into files(Name, Status) values ('%s', '%s')"%(fn,m))
+        con.commit()
+        con.close() 
+        print "close 387"
             
     def update_statusfile(self):
-        cur=self.statusfiledb.cursor()
 
         for f in self.files:
-            cur.execute("select * from files where Name = '%s' "%(f.filename))
-            current_status=None
+            con = sqlite3.connect(self.statusfile.filename)
+            print "open at 401"
+            cur=con.cursor()
+            cur.execute("select Name, Status from files where Name = '%s' "%(f.filename))
+            current_status=f.status()
             while True:
                 row=cur.fetchone()
                 if row == None:
                     break
-                current_status=row[2]
+                current_status=row[1]
             
+            con.commit()
+            con.close()
+            print "close 401"
             if current_status== None:
                 self.update_statusfile_line(f.filename, "new")    
             else:
@@ -376,7 +432,7 @@ class process_job:
                     self.update_statusfile_line(f.filename, "processed")
                 else:
                     self.update_statusfile_line(f.filename, "ready")
-
+        
 class main:
     opts=None
     args=None
